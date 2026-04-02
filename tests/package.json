@@ -1,0 +1,11 @@
+{
+  "name": "luxodd-godot-plugin-tests",
+  "private": true,
+  "description": "Mock server and test utilities for the Luxodd Godot plugin",
+  "scripts": {
+    "mock-server": "node mock_server.js"
+  },
+  "dependencies": {
+    "ws": "^8.0.0"
+  }
+}

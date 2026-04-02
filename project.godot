@@ -1,0 +1,17 @@
+; Root project file used for running automated tests.
+; The example/ folder has its own project.godot for the demo.
+
+config_version=5
+
+[application]
+
+config/name="Luxodd Godot Plugin"
+config/features=PackedStringArray("4.3")
+
+[autoload]
+
+Luxodd="*res://addons/luxodd/luxodd.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/luxodd/plugin.cfg")

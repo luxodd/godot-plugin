@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="LuxoddConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/luxodd/config/luxodd_config.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+server_address = "ws://localhost:8765"
+developer_debug_token = "test_token_abc123"
+max_reconnect_attempts = 2
+reconnect_delay_seconds = 0.3
+health_check_interval_seconds = 2.0
+command_timeout_seconds = 4.0
