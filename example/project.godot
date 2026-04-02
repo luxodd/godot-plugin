@@ -1,11 +1,11 @@
-; Target Pop — Luxodd plugin example game
+; Tower Stacker — Luxodd plugin example game
 
 config_version=5
 
 [application]
 
-config/name="Target Pop"
-run/main_scene="res://game.tscn"
+config/name="Tower Stacker"
+run/main_scene="res://stacker.tscn"
 config/features=PackedStringArray("4.3")
 
 [autoload]
@@ -14,8 +14,8 @@ Luxodd="*res://addons/luxodd/luxodd.gd"
 
 [display]
 
-window/size/viewport_width=800
-window/size/viewport_height=600
+window/size/viewport_width=600
+window/size/viewport_height=800
 window/stretch/mode="canvas_items"
 
 [editor_plugins]
