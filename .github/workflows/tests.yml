@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install mock server dependencies
+        working-directory: tests
+        run: npm ci
+
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.2
+          use-dotnet: false
+
+      - name: Import Godot project
+        run: godot --headless --import 2>&1 || true
+
+      - name: Start mock server
+        run: |
+          node tests/mock_server.js 8765 &
+          sleep 1
+
+      - name: Run tests
+        run: godot --headless --path . 2>&1
