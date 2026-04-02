@@ -18,3 +18,6 @@ desktop.ini
 *.swp
 *.swo
 *~
+
+# Example addon junction (symlinked from root)
+example/addons/

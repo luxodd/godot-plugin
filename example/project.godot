@@ -1,22 +1,22 @@
-; Engine configuration file.
-; It's best edited using the editor UI and not directly,
-; since the parameters that go here are not all obvious.
-;
-; Format:
-;   [section] ; section goes between []
-;   param=value ; assign values to parameters
+; Target Pop — Luxodd plugin example game
 
 config_version=5
 
 [application]
 
-config/name="Luxodd Example"
-run/main_scene="res://example.tscn"
+config/name="Target Pop"
+run/main_scene="res://game.tscn"
 config/features=PackedStringArray("4.3")
 
 [autoload]
 
 Luxodd="*res://addons/luxodd/luxodd.gd"
+
+[display]
+
+window/size/viewport_width=800
+window/size/viewport_height=600
+window/stretch/mode="canvas_items"
 
 [editor_plugins]
 

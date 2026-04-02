@@ -249,10 +249,15 @@ func _resolve_token() -> String:
 
 
 func _load_config() -> LuxoddConfig:
-	var path := "res://addons/luxodd/config/luxodd_config.tres"
-	if ResourceLoader.exists(path):
-		return load(path) as LuxoddConfig
-	push_warning("[Luxodd] Config not found at %s, using defaults" % path)
+	# Check for a project-local override first, then fall back to addon default
+	for path in [
+		"res://luxodd_config.tres",
+		"res://luxodd_dev_config.tres",
+		"res://addons/luxodd/config/luxodd_config.tres",
+	]:
+		if ResourceLoader.exists(path):
+			return load(path) as LuxoddConfig
+	push_warning("[Luxodd] No config found, using defaults")
 	return LuxoddConfig.new()
 
 
