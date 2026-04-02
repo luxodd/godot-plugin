@@ -56,7 +56,7 @@ try {
     Write-Host ""
 
     Push-Location $ProjectDir
-    $godotResult = & $GodotBin --headless --path . -s tests/test_runner.gd 2>&1
+    $godotResult = & $GodotBin --headless --path . 2>&1
     $TestExit = $LASTEXITCODE
     $godotResult | ForEach-Object { Write-Host $_ }
     Pop-Location

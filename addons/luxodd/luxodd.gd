@@ -107,8 +107,8 @@ func connect_to_server() -> void:
 		return
 
 	_session_token = token
-	var url := "%s?token=%s" % [_config.server_address, token]
-	_websocket.connect_to(url)
+	var headers := PackedStringArray(["Authorization: Bearer %s" % token])
+	_websocket.connect_to(_config.server_address, headers)
 
 
 func disconnect_from_server() -> void:

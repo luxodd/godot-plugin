@@ -1,7 +1,11 @@
 # Godot
 .godot/
 *.import
+*.uid
 export_presets.cfg
+
+# Node
+node_modules/
 
 # OS
 .DS_Store

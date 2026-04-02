@@ -13,6 +13,7 @@ signal reconnect_failed()
 
 var _peer: WebSocketPeer = WebSocketPeer.new()
 var _url: String = ""
+var _headers: PackedStringArray = PackedStringArray()
 var _is_connected: bool = false
 var _was_connected: bool = false
 var _pending_queue: Array[String] = []
@@ -29,13 +30,12 @@ func configure(max_attempts: int, delay: float) -> void:
 	_reconnect_delay = delay
 
 
-func connect_to(url: String) -> void:
+func connect_to(url: String, headers: PackedStringArray = PackedStringArray()) -> void:
 	_url = url
+	_headers = headers
 	_reconnect_attempts = 0
 	_is_reconnecting = false
-	var err := _peer.connect_to_url(url)
-	if err != OK:
-		ws_error.emit("Failed to initiate WebSocket connection: %d" % err)
+	_do_connect()
 
 
 func disconnect_ws() -> void:
@@ -93,6 +93,14 @@ func poll() -> void:
 			pass
 
 
+func _do_connect() -> void:
+	_peer = WebSocketPeer.new()
+	_peer.handshake_headers = _headers
+	var err := _peer.connect_to_url(_url)
+	if err != OK:
+		ws_error.emit("Failed to initiate WebSocket connection: %d" % err)
+
+
 func _flush_queue() -> void:
 	var queue := _pending_queue.duplicate()
 	_pending_queue.clear()
@@ -112,9 +120,4 @@ func _try_reconnect() -> void:
 
 	await get_tree().create_timer(_reconnect_delay).timeout
 
-	# Create a fresh peer for the new connection attempt
-	_peer = WebSocketPeer.new()
-	var err := _peer.connect_to_url(_url)
-	if err != OK:
-		_is_reconnecting = false
-		_try_reconnect()
+	_do_connect()

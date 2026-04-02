@@ -105,8 +105,8 @@ wss.on("listening", () => {
 
 wss.on("connection", (ws, req) => {
   connectionCount++;
-  const url = new URL(req.url, `http://localhost:${PORT}`);
-  const token = url.searchParams.get("token") || "(none)";
+  const authHeader = req.headers["authorization"] || "";
+  const token = authHeader.replace("Bearer ", "") || "(none)";
   console.log(
     `[mock-server] client connected (#${connectionCount}, token=${token})`
   );

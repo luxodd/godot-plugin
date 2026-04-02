@@ -49,9 +49,9 @@ func _run_tests() -> void:
 	_begin("connect_to_server")
 	Luxodd.connect_to_server()
 	var result = await _wait_for_signal(Luxodd.connected, 5.0)
-	_assert(result, "Should connect to mock server")
+	_assert(result != null, "Should connect to mock server")
 
-	if not result:
+	if result == null:
 		print("[SKIP] Skipping remaining tests — no connection")
 		return
 

@@ -6,6 +6,7 @@ config_version=5
 [application]
 
 config/name="Luxodd Godot Plugin"
+run/main_scene="res://tests/test_runner.tscn"
 config/features=PackedStringArray("4.3")
 
 [autoload]

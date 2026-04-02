@@ -58,7 +58,7 @@ echo ""
 
 cd "$PROJECT_DIR"
 set +e
-"$GODOT_BIN" --headless --path . -s tests/test_runner.gd 2>&1
+"$GODOT_BIN" --headless --path . 2>&1
 TEST_EXIT=$?
 set -e
 
