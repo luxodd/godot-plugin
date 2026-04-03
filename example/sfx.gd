@@ -211,66 +211,165 @@ func _gen_menu_select() -> AudioStreamWAV:
 
 
 func _gen_music() -> AudioStreamWAV:
-	# Looping synthwave bass line — 4 bars at 130 BPM
-	var bpm := 130.0
-	var beats_per_bar := 4
-	var bars := 4
-	var total_beats := bars * beats_per_bar
-	var beat_duration := 60.0 / bpm
-	var total_seconds := total_beats * beat_duration
-	var sample_rate := 22050
-	var samples := int(total_seconds * float(sample_rate))
+	# 32-bar synthwave track with arrangement that builds and evolves.
+	# Key of C minor. Chord progression: Cm - Fm - Ab - G (i-iv-VI-V)
+	var bpm := 128.0
+	var bars := 32
+	var beat_dur := 60.0 / bpm
+	var total_beats := bars * 4
+	var sr := 22050
+	var samples := int(total_beats * beat_dur * float(sr))
 	var data := PackedByteArray()
 	data.resize(samples * 2)
 
-	# Bass note pattern (MIDI-ish): C2, C2, Eb2, Eb2, F2, F2, G2, G2, repeat...
-	var bass_freqs := [65.4, 65.4, 77.8, 77.8, 87.3, 87.3, 98.0, 98.0,
-					   65.4, 65.4, 77.8, 77.8, 87.3, 98.0, 87.3, 65.4]
+	# Chord roots per bar (repeating 4-bar progression)
+	var chord_roots := [65.4, 87.3, 103.8, 98.0]  # C2, F2, Ab2, G2
+	# Chord triads for arps/pads (octave 4)
+	var chord_triads := [
+		[261.6, 311.1, 392.0],  # Cm: C4, Eb4, G4
+		[349.2, 415.3, 523.3],  # Fm: F4, Ab4, C5
+		[415.3, 523.3, 622.3],  # Ab: Ab4, C5, Eb5
+		[392.0, 493.9, 587.3],  # G:  G4, B4, D5
+	]
+	# Lead melody — 2 phrases of 8 bars each, in scale degrees (C minor pentatonic)
+	# Values are frequencies. 0.0 = rest.
+	var melody_a := [
+		523.3, 0.0, 622.3, 523.3, 392.0, 0.0, 311.1, 0.0,  # bar 1-2
+		523.3, 622.3, 784.0, 622.3, 523.3, 0.0, 392.0, 0.0,  # bar 3-4
+		311.1, 0.0, 392.0, 523.3, 0.0, 622.3, 523.3, 392.0,  # bar 5-6
+		311.1, 261.6, 0.0, 311.1, 392.0, 0.0, 0.0, 0.0,      # bar 7-8
+	]
+	var melody_b := [
+		784.0, 0.0, 622.3, 784.0, 932.3, 0.0, 784.0, 622.3,
+		523.3, 0.0, 622.3, 0.0, 784.0, 622.3, 523.3, 0.0,
+		392.0, 523.3, 622.3, 784.0, 0.0, 622.3, 523.3, 0.0,
+		392.0, 311.1, 261.6, 0.0, 311.1, 392.0, 523.3, 0.0,
+	]
 
 	for i in range(samples):
-		var t := float(i) / float(sample_rate)
-		var beat := t / beat_duration
-		var beat_idx := int(beat) % bass_freqs.size()
-		var beat_phase := fmod(beat, 1.0)
-
-		# Bass synth — saw-ish wave with filter envelope
-		var freq: float = bass_freqs[beat_idx]
-		var bass_env := clampf(1.0 - beat_phase * 1.5, 0.0, 1.0)
-		var phase := fmod(t * freq, 1.0)
-		var saw := (phase * 2.0 - 1.0) * 0.3
-		# Crude low-pass: mix with sine
-		var sine := sin(t * freq * TAU) * 0.25
-		var bass := (saw * 0.4 + sine * 0.6) * bass_env
-
-		# Hi-hat pattern on every 8th note
-		var eighth := fmod(beat * 2.0, 1.0)
-		var hat_env := clampf(1.0 - eighth * 8.0, 0.0, 1.0)
-		var hat := (randf() - 0.5) * hat_env * 0.08
-
-		# Kick on beats 1 and 3
-		var kick := 0.0
+		var t := float(i) / float(sr)
+		var beat := t / beat_dur
+		var bar := int(beat / 4.0)
 		var beat_in_bar := fmod(beat, 4.0)
-		if beat_in_bar < 0.15 or (beat_in_bar >= 2.0 and beat_in_bar < 2.15):
-			var kick_t := fmod(beat_in_bar, 2.0) / 0.15
-			var kick_freq := lerpf(150.0, 50.0, kick_t)
-			kick = sin(kick_t * kick_freq * 0.5) * (1.0 - kick_t) * 0.35
+		var section := bar / 4  # 0-7 (8 sections of 4 bars)
+		var chord_idx := bar % 4
+		var prog_beat := int(beat) % (bars * 4)
 
-		# Arp synth — 16th note arpeggiated chord
-		var sixteenth := fmod(beat * 4.0, 1.0)
-		var arp_env := clampf(1.0 - sixteenth * 3.0, 0.0, 1.0) * 0.12
-		var arp_notes := [261.6, 311.1, 392.0, 523.3]  # C4, Eb4, G4, C5
-		var arp_idx := int(fmod(beat * 4.0, 4.0))
-		var arp_freq: float = arp_notes[arp_idx]
-		var arp := sin(t * arp_freq * TAU) * arp_env
+		# ── ARRANGEMENT flags based on section ──
+		var has_kick := section >= 1
+		var has_hat := section >= 2
+		var has_snare := section >= 2
+		var has_bass := true
+		var has_arp := section >= 2 and section != 4
+		var has_lead := section >= 3 and section != 4
+		var has_pad := section == 0 or section == 4 or section >= 6
+		# Section 4 = breakdown (just bass + pad)
+		# Section 0 = intro (bass + pad)
 
-		var val := bass + hat + kick + arp
+		var beat_phase := fmod(beat, 1.0)
+		var val := 0.0
+
+		# ── KICK: four-on-floor ──
+		if has_kick and beat_phase < 0.12:
+			var kt := beat_phase / 0.12
+			var kf := lerpf(160.0, 45.0, kt)
+			val += sin(kt * kf * 0.6) * (1.0 - kt) * 0.32
+
+		# ── SNARE: beats 2 and 4 ──
+		if has_snare:
+			var snare_hits := [1.0, 3.0]
+			for sh in snare_hits:
+				var sd: float = beat_in_bar - sh
+				if sd >= 0.0 and sd < 0.1:
+					var st := sd / 0.1
+					val += (randf() - 0.5) * (1.0 - st) * 0.22
+					val += sin(st * 200.0 * 0.4) * (1.0 - st) * 0.12
+
+		# ── HI-HAT: 8th notes, open on offbeats ──
+		if has_hat:
+			var eighth_phase := fmod(beat * 2.0, 1.0)
+			var is_offbeat := int(beat * 2.0) % 2 == 1
+			var hat_decay := 8.0 if not is_offbeat else 3.0
+			var hat_env := clampf(1.0 - eighth_phase * hat_decay, 0.0, 1.0)
+			val += (randf() - 0.5) * hat_env * (0.06 if not is_offbeat else 0.09)
+
+		# ── BASS: root note, saw+sine with rhythmic gate ──
+		if has_bass:
+			var root: float = chord_roots[chord_idx]
+			# 8th note rhythm with accent on beat
+			var eighth_beat := fmod(beat * 2.0, 1.0)
+			var bass_gate := clampf(1.0 - eighth_beat * 2.5, 0.0, 1.0)
+			# Accent pattern: strong on 1, medium on others
+			var accent := 1.0 if fmod(beat, 1.0) < 0.05 else 0.7
+			var bphase := fmod(t * root, 1.0)
+			var bsaw := (bphase * 2.0 - 1.0) * 0.22
+			var bsine := sin(t * root * TAU) * 0.2
+			# Sub bass (one octave down)
+			var sub := sin(t * root * 0.5 * TAU) * 0.15
+			val += (bsaw * 0.4 + bsine * 0.6 + sub) * bass_gate * accent
+
+		# ── PAD: soft chord, triangle-ish wave ──
+		if has_pad:
+			var pad_vol := 0.04
+			for note_idx in range(3):
+				var pfreq: float = chord_triads[chord_idx][note_idx] * 0.5  # octave 3
+				var pphase := fmod(t * pfreq, 1.0)
+				# Triangle wave
+				var tri := abs(pphase * 4.0 - 2.0) - 1.0
+				val += tri * pad_vol
+			# Slight detuned copy for width
+			for note_idx in range(3):
+				var pfreq: float = chord_triads[chord_idx][note_idx] * 0.501
+				var pphase := fmod(t * pfreq, 1.0)
+				var tri := abs(pphase * 4.0 - 2.0) - 1.0
+				val += tri * pad_vol * 0.7
+
+		# ── ARP: 16th note arpeggiated chord with filter sweep ──
+		if has_arp:
+			var sixteenth := fmod(beat * 4.0, 1.0)
+			var arp_gate := clampf(1.0 - sixteenth * 4.0, 0.0, 1.0)
+			var arp_idx := int(fmod(beat * 4.0, 6.0)) % 3  # cycle through triad
+			var afreq: float = chord_triads[chord_idx][arp_idx]
+			# Alternate octave on some notes
+			if int(beat * 4.0) % 4 == 3:
+				afreq *= 2.0
+			# Filter sweep: brightness increases through each 4-bar section
+			var section_phase := fmod(float(bar), 4.0) / 4.0
+			var brightness := 0.3 + section_phase * 0.5
+			# Square-ish wave with variable pulse width
+			var aphase := fmod(t * afreq, 1.0)
+			var pulse := 1.0 if aphase < (0.3 + brightness * 0.2) else -1.0
+			var arp_sine := sin(t * afreq * TAU)
+			var arp_val := (pulse * brightness + arp_sine * (1.0 - brightness)) * arp_gate * 0.08
+			val += arp_val
+
+		# ── LEAD MELODY ──
+		if has_lead:
+			var melody: Array = melody_a if section < 6 else melody_b
+			var mel_idx := prog_beat % melody.size()
+			# Half-note melody (one note per 2 beats)
+			mel_idx = (int(beat / 2.0)) % melody.size()
+			var mfreq: float = melody[mel_idx]
+			if mfreq > 0.0:
+				var mel_phase := fmod(beat / 2.0, 1.0)
+				var mel_env := clampf(1.0 - mel_phase * 0.7, 0.3, 1.0)
+				# Vibrato
+				var vibrato := sin(t * 5.5) * 3.0
+				var mphase := fmod(t * (mfreq + vibrato), 1.0)
+				# Smooth saw with sine blend
+				var msaw := (mphase * 2.0 - 1.0) * 0.5
+				var msine := sin(t * (mfreq + vibrato) * TAU) * 0.5
+				val += (msaw * 0.4 + msine * 0.6) * mel_env * 0.1
+
+		# ── FINAL MIX: soft clip ──
+		val = clampf(val, -0.85, 0.85)
 		var s := clampi(int(val * 32767.0), -32768, 32767)
 		data[i * 2] = s & 0xFF
 		data[i * 2 + 1] = (s >> 8) & 0xFF
 
 	var stream := AudioStreamWAV.new()
 	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = sample_rate
+	stream.mix_rate = sr
 	stream.stereo = false
 	stream.data = data
 	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
