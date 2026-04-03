@@ -107,8 +107,9 @@ func connect_to_server() -> void:
 		return
 
 	_session_token = token
+	var server_url := _resolve_server_url()
 	var headers := PackedStringArray(["Authorization: Bearer %s" % token])
-	_websocket.connect_to(_config.server_address, headers)
+	_websocket.connect_to(server_url, headers)
 
 
 func disconnect_from_server() -> void:
@@ -236,6 +237,17 @@ func stop_health_check() -> void:
 
 
 # ── Internal handlers ─────────────────────────────────────────────────────────
+
+func _resolve_server_url() -> String:
+	# In production HTML5: derive from host page origin (no config needed)
+	if OS.has_feature("web"):
+		var host_url := _bridge.get_server_url()
+		if not host_url.is_empty():
+			return host_url
+
+	# Fall back to config (used in editor/desktop testing)
+	return _config.server_address
+
 
 func _resolve_token() -> String:
 	# In HTML5 builds, prefer the JWT from the host page or URL query string

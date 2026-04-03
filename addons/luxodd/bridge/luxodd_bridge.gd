@@ -55,6 +55,24 @@ func get_token_from_url() -> String:
 	return str(result) if result != null else ""
 
 
+func get_server_url() -> String:
+	## Derive the WebSocket server URL from the host page origin.
+	## In production, the game runs on a Luxodd domain — the WS server
+	## is at the same origin with wss:// protocol.
+	if not _is_web:
+		return ""
+	var result: Variant = JavaScriptBridge.eval("""
+		(function() {
+			var origin = window.location.origin;
+			if (origin && origin !== 'null' && origin.indexOf('localhost') === -1) {
+				return origin.replace('https://', 'wss://').replace('http://', 'ws://');
+			}
+			return '';
+		})();
+	""", true)
+	return str(result) if result != null else ""
+
+
 func post_game_ready() -> void:
 	if not _is_web:
 		return
