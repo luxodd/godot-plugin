@@ -80,6 +80,8 @@ var _best_distance: int = 0
 
 # ── UI refs ───────────────────────────────────────────────────────────────────
 
+var _sfx: Node  # SFX manager
+
 @onready var _connecting_label: Label = %ConnectingLabel
 @onready var _menu_panel: Control = %MenuPanel
 @onready var _game_over_panel: Control = %GameOverPanel
@@ -107,6 +109,12 @@ var _cube_x: float
 func _ready() -> void:
 	_viewport_size = get_viewport_rect().size
 	_cube_x = _viewport_size.x * 0.18
+
+	# Sound effects
+	var sfx_script := load("res://sfx.gd")
+	_sfx = sfx_script.new()
+	add_child(_sfx)
+
 	_apply_theme()
 	_set_state(State.CONNECTING)
 
@@ -172,7 +180,8 @@ func _do_jump() -> void:
 	_vel_y = JUMP_FORCE
 	_on_ground = false
 	_jumps_queued = false
-	_squash = 1.35  # stretch upward on jump
+	_squash = 1.35
+	_sfx.play("jump", -6.0)
 
 	for i in range(8):
 		_particles.append({
@@ -188,8 +197,9 @@ func _do_jump() -> void:
 
 
 func _land() -> void:
-	_squash = 0.6  # squash on land
+	_squash = 0.6
 	_shake = 1.5
+	_sfx.play("land", -10.0)
 	for i in range(5):
 		_particles.append({
 			"x": _cube_x + CUBE_SIZE * 0.5 + randf_range(-6, 6),
@@ -205,10 +215,13 @@ func _land() -> void:
 
 # ── Countdown ─────────────────────────────────────────────────────────────────
 
+var _last_countdown: String = ""
+
 func _update_countdown(delta: float) -> void:
 	_countdown_timer -= delta
 	_ground_offset = fmod(_ground_offset + BASE_SPEED * 0.5 * delta, 40.0)
 	_grid_offset += BASE_SPEED * 0.3 * delta
+	var prev := _countdown_text
 	if _countdown_timer > 2.0:
 		_countdown_text = "3"
 	elif _countdown_timer > 1.0:
@@ -221,6 +234,14 @@ func _update_countdown(delta: float) -> void:
 			_state = State.PLAYING
 			_flash_alpha = 0.2
 			_flash_color = Color(0.2, 1.0, 0.4)
+			_sfx.start_music()
+
+	# Play beep on each countdown change
+	if _countdown_text != prev:
+		if _countdown_text == "GO!":
+			_sfx.play("go")
+		elif _countdown_text in ["3", "2", "1"]:
+			_sfx.play("countdown", -3.0)
 
 
 # ── Game update ───────────────────────────────────────────────────────────────
@@ -358,6 +379,9 @@ func _on_obstacle_passed(obs: Dictionary) -> void:
 		_shake = 3.0
 		_flash_alpha = 0.1
 		_flash_color = Color.YELLOW
+		_sfx.play("near_miss", -2.0)
+	else:
+		_sfx.play("pass", -8.0)
 
 
 func _check_near_miss(obs: Dictionary) -> bool:
@@ -376,6 +400,7 @@ func _check_tier_milestone() -> void:
 
 
 func _celebrate_tier(tier: Array) -> void:
+	_sfx.play("tier")
 	var col: Color = tier[2]
 	_flash_alpha = 0.4
 	_flash_color = col
@@ -426,6 +451,8 @@ func _die() -> void:
 	_state = State.DEAD
 	_death_timer = 1.2
 	_shake = 18.0
+	_sfx.play("death")
+	_sfx.stop_music()
 	_flash_alpha = 1.0
 	_flash_color = Color(1.0, 0.3, 0.2)
 
@@ -898,6 +925,7 @@ func _start_game() -> void:
 
 
 func _on_play_pressed() -> void:
+	_sfx.play("menu_select")
 	if _free_play:
 		_start_game()
 		return
