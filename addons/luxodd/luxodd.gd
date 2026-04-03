@@ -262,12 +262,15 @@ func _resolve_token() -> String:
 
 
 func _load_config() -> LuxoddConfig:
-	# Check for a project-local override first, then fall back to addon default
-	for path in [
-		"res://luxodd_config.tres",
-		"res://luxodd_dev_config.tres",
-		"res://addons/luxodd/config/luxodd_config.tres",
-	]:
+	# In web builds, skip dev config — only use addon default or production config
+	var is_web := OS.has_feature("web")
+	var paths: Array[String] = []
+	if is_web:
+		paths = ["res://luxodd_config.tres", "res://addons/luxodd/config/luxodd_config.tres"]
+	else:
+		paths = ["res://luxodd_config.tres", "res://luxodd_dev_config.tres", "res://addons/luxodd/config/luxodd_config.tres"]
+
+	for path in paths:
 		if ResourceLoader.exists(path):
 			return load(path) as LuxoddConfig
 	push_warning("[Luxodd] No config found, using defaults")

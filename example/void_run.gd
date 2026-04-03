@@ -913,10 +913,14 @@ func _on_connected() -> void:
 	Luxodd.get_balance()
 	_set_state(State.MENU)
 
-func _on_connection_failed(error: String) -> void:
-	_connecting_label.text = "Connection failed: %s\nRetrying..." % error
-	await get_tree().create_timer(2.0).timeout
-	Luxodd.connect_to_server()
+func _on_connection_failed(_error: String) -> void:
+	# If no server available, go straight to free play mode
+	_welcome_label.text = "Welcome!"
+	_balance = 999999
+	_balance_label.text = "FREE PLAY"
+	_play_button.disabled = false
+	_cost_label.text = "No server — free play mode"
+	_set_state(State.MENU)
 
 func _on_profile(profile: Dictionary) -> void:
 	_username = profile.get("name", profile.get("username", "Player"))
