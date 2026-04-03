@@ -457,6 +457,8 @@ func _update_death(delta: float) -> void:
 func _show_game_over() -> void:
 	_state = State.GAME_OVER
 	_set_state(State.GAME_OVER)
+	# Hide play again on platform — session end returns to arcade
+	_play_again_button.visible = _free_play
 	var tier := _get_reached_tier()
 	if tier.is_empty():
 		_result_title.text = "CRASHED"
@@ -473,8 +475,9 @@ func _show_game_over() -> void:
 		_best_distance = _score
 	if not _free_play:
 		Luxodd.level_end(1, _score, int(_speed))
-		Luxodd.get_leaderboard()
-		Luxodd.get_balance()
+		# Signal session end after a delay so player can see their score
+		await get_tree().create_timer(3.0).timeout
+		Luxodd.notify_session_end()
 
 
 # ── Particles & effects ──────────────────────────────────────────────────────
@@ -920,9 +923,8 @@ func _on_play_again_pressed() -> void:
 func _on_connected() -> void:
 	Luxodd.notify_game_ready()
 	Luxodd.start_health_check()
-	Luxodd.get_profile()
-	Luxodd.get_balance()
-	_set_state(State.MENU)
+	# Platform already charged the player — go straight to game
+	_start_game()
 
 func _on_connection_failed(_error: String) -> void:
 	_free_play = true
@@ -968,8 +970,9 @@ func _on_command_error(command: String, _code: int, _message: String) -> void:
 func _on_host_action(action: String) -> void:
 	match action:
 		"restart":
-			_set_state(State.MENU)
-			Luxodd.get_balance()
+			_start_game()
+		"continue":
+			_start_game()
 		"end":
 			Luxodd.notify_session_end()
 
