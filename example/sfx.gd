@@ -315,13 +315,13 @@ func _gen_music() -> AudioStreamWAV:
 				var pfreq: float = chord_triads[chord_idx][note_idx] * 0.5  # octave 3
 				var pphase := fmod(t * pfreq, 1.0)
 				# Triangle wave
-				var tri := abs(pphase * 4.0 - 2.0) - 1.0
+				var tri: float = absf(pphase * 4.0 - 2.0) - 1.0
 				val += tri * pad_vol
 			# Slight detuned copy for width
 			for note_idx in range(3):
 				var pfreq: float = chord_triads[chord_idx][note_idx] * 0.501
 				var pphase := fmod(t * pfreq, 1.0)
-				var tri := abs(pphase * 4.0 - 2.0) - 1.0
+				var tri: float = absf(pphase * 4.0 - 2.0) - 1.0
 				val += tri * pad_vol * 0.7
 
 		# ── ARP: 16th note arpeggiated chord with filter sweep ──
