@@ -108,8 +108,9 @@ func connect_to_server() -> void:
 
 	_session_token = token
 	var server_url := _resolve_server_url()
-	# Pass token as query param — Godot Web doesn't support custom WS headers
-	var url := "%s?token=%s" % [server_url, token]
+	# Connect to /ws endpoint with token as query param
+	# (Godot Web doesn't support custom WS headers)
+	var url := "%s/ws?token=%s" % [server_url, token]
 	_websocket.connect_to(url)
 
 
@@ -240,11 +241,11 @@ func stop_health_check() -> void:
 # ── Internal handlers ─────────────────────────────────────────────────────────
 
 func _resolve_server_url() -> String:
-	# In production HTML5: derive from host page origin (no config needed)
+	# In production HTML5: read wsHost from URL params (set by Luxodd embed page)
 	if OS.has_feature("web"):
-		var host_url := _bridge.get_server_url()
-		if not host_url.is_empty():
-			return host_url
+		var ws_host := _bridge.get_ws_host_from_url()
+		if not ws_host.is_empty():
+			return ws_host
 
 	# Fall back to config (used in editor/desktop testing)
 	return _config.server_address

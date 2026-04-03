@@ -49,31 +49,24 @@ func initialize() -> void:
 func get_token_from_url() -> String:
 	if not _is_web:
 		return ""
-	var result: Variant = JavaScriptBridge.eval(
-		"new URLSearchParams(window.location.search).get('token') || '';", true
-	)
+	var result: Variant = JavaScriptBridge.eval("""
+		(function() {
+			var params = new URLSearchParams(window.location.search);
+			return params.get('token') || '';
+		})();
+	""", true)
 	return str(result) if result != null else ""
 
 
-func get_server_url() -> String:
-	## Derive the WebSocket server URL from the host page.
-	## Only activates when the game is embedded in a Luxodd host page
-	## (detected via parent frame origin or luxodd domain).
+func get_ws_host_from_url() -> String:
+	## Read the wsHost query param set by the Luxodd embed page.
 	if not _is_web:
 		return ""
 	var result: Variant = JavaScriptBridge.eval("""
 		(function() {
-			try {
-				// Check if we're in an iframe with a Luxodd parent
-				if (window.parent !== window) {
-					return '';  // Let the host page provide config via postMessage
-				}
-			} catch(e) {}
-			// Only auto-detect on luxodd domains
-			var host = window.location.hostname;
-			if (host.indexOf('luxodd') !== -1 || host.indexOf('luxlaunch') !== -1) {
-				return window.location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
-			}
+			var params = new URLSearchParams(window.location.search);
+			var wsHost = params.get('wsHost') || '';
+			if (wsHost) return 'wss://' + wsHost;
 			return '';
 		})();
 	""", true)
