@@ -32,7 +32,7 @@ const TIERS: Array = [
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
-enum State { CONNECTING, MENU, COUNTDOWN, PLAYING, DEAD, GAME_OVER }
+enum State { CONNECTING, TAP_TO_START, MENU, COUNTDOWN, PLAYING, DEAD, GAME_OVER }
 
 var _state: State = State.CONNECTING
 
@@ -160,6 +160,29 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# TAP_TO_START: any input unlocks audio and starts the game
+	if _state == State.TAP_TO_START:
+		var any_press := false
+		if event is InputEventKey and event.pressed:
+			any_press = true
+		if event is InputEventMouseButton and event.pressed:
+			any_press = true
+		if event is InputEventJoypadButton and event.pressed:
+			any_press = true
+		if event is InputEventScreenTouch and event.pressed:
+			any_press = true
+		if any_press:
+			if _free_play:
+				_welcome_label.text = "Welcome!"
+				_balance = 999999
+				_balance_label.text = "FREE PLAY"
+				_play_button.disabled = false
+				_cost_label.text = "No server — free play mode"
+				_set_state(State.MENU)
+			else:
+				_start_game()
+		return
+
 	if _state != State.PLAYING:
 		return
 	var jump := false
@@ -883,10 +906,13 @@ func _update_tier_hud() -> void:
 
 func _set_state(new_state: State) -> void:
 	_state = new_state
-	_connecting_label.visible = new_state == State.CONNECTING
+	_connecting_label.visible = new_state in [State.CONNECTING, State.TAP_TO_START]
 	_menu_panel.visible = new_state == State.MENU
 	_hud.visible = new_state in [State.PLAYING, State.DEAD, State.COUNTDOWN]
 	_game_over_panel.visible = new_state == State.GAME_OVER
+
+	if new_state == State.TAP_TO_START:
+		_connecting_label.text = "TAP TO START"
 
 
 func _start_game() -> void:
@@ -951,17 +977,12 @@ func _on_play_again_pressed() -> void:
 func _on_connected() -> void:
 	Luxodd.notify_game_ready()
 	Luxodd.start_health_check()
-	# Platform already charged the player — go straight to game
-	_start_game()
+	# Need a user tap to unlock web audio
+	_set_state(State.TAP_TO_START)
 
 func _on_connection_failed(_error: String) -> void:
 	_free_play = true
-	_welcome_label.text = "Welcome!"
-	_balance = 999999
-	_balance_label.text = "FREE PLAY"
-	_play_button.disabled = false
-	_cost_label.text = "No server — free play mode"
-	_set_state(State.MENU)
+	_set_state(State.TAP_TO_START)
 
 func _on_profile(profile: Dictionary) -> void:
 	_username = profile.get("name", profile.get("username", "Player"))
