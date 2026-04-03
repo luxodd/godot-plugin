@@ -153,7 +153,7 @@ func _gen_tier() -> AudioStreamWAV:
 		var t := float(i) / float(samples)
 		var note_idx := mini(int(t * 3.0), 2)
 		var note_t := fmod(t * 3.0, 1.0)
-		var freq := notes[note_idx]
+		var freq: float = notes[note_idx]
 		var envelope := (1.0 - note_t * 0.5) * (1.0 - t * 0.3)
 		# Main tone + octave
 		var val := sin(t * freq * 0.14) * 0.4 + sin(t * freq * 0.28) * 0.2
