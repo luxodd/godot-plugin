@@ -9,8 +9,8 @@ const GRAVITY := 2400.0
 const JUMP_FORCE := -680.0
 const APEX_GRAVITY_MULT := 0.45
 const BASE_SPEED := 250.0
-const MAX_SPEED := 620.0
-const SPEED_RAMP := 5.0
+const MAX_SPEED := 580.0
+const SPEED_RAMP := 3.5
 
 const GROUND_Y := 500.0
 const CUBE_SIZE := 26.0
@@ -352,9 +352,9 @@ func _manage_obstacles(_delta: float) -> void:
 		rightmost = maxf(rightmost, obs["x"] + float(obs["width"]))
 
 	while rightmost < _viewport_size.x + 600:
-		var progress := clampf(_obstacles_passed / 30.0, 0.0, 1.0)
-		var min_gap := lerpf(OBSTACLE_MIN_GAP, 180.0, progress)
-		var max_gap := lerpf(OBSTACLE_MAX_GAP, 260.0, progress)
+		var progress := clampf(_obstacles_passed / 50.0, 0.0, 1.0)
+		var min_gap := lerpf(OBSTACLE_MIN_GAP, 200.0, progress)
+		var max_gap := lerpf(OBSTACLE_MAX_GAP, 280.0, progress)
 		var gap := randf_range(min_gap, max_gap)
 		var x := rightmost + gap
 		_obstacles.append(_generate_obstacle(x))
@@ -362,13 +362,13 @@ func _manage_obstacles(_delta: float) -> void:
 
 
 func _generate_obstacle(x: float) -> Dictionary:
-	var difficulty := clampf(_obstacles_passed / 40.0, 0.0, 1.0)
+	var difficulty := clampf(_obstacles_passed / 60.0, 0.0, 1.0)
 	if randf() < 0.55:
-		var h := randf_range(30.0, 45.0 + difficulty * 25.0)
+		var h := randf_range(28.0, 40.0 + difficulty * 22.0)
 		return {"x": x, "type": "spike", "height": h, "width": 22.0, "passed": false}
 	else:
-		var h := randf_range(38.0, 55.0 + difficulty * 20.0)
-		var w := randf_range(18.0, 28.0 + difficulty * 12.0)
+		var h := randf_range(34.0, 48.0 + difficulty * 18.0)
+		var w := randf_range(16.0, 24.0 + difficulty * 10.0)
 		return {"x": x, "type": "wall", "height": h, "width": w, "passed": false}
 
 
