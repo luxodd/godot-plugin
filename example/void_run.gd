@@ -73,6 +73,7 @@ var _ground_pulse: float = 0.0    # ground glow pulse
 var _grid_offset: float = 0.0
 
 # Platform
+var _free_play: bool = false
 var _balance: int = 0
 var _username: String = "Player"
 var _best_distance: int = 0
@@ -470,9 +471,10 @@ func _show_game_over() -> void:
 	_final_dist_label.text = "%dm" % _score
 	if _score > _best_distance:
 		_best_distance = _score
-	Luxodd.level_end(1, _score, int(_speed))
-	Luxodd.get_leaderboard()
-	Luxodd.get_balance()
+	if not _free_play:
+		Luxodd.level_end(1, _score, int(_speed))
+		Luxodd.get_leaderboard()
+		Luxodd.get_balance()
 
 
 # ── Particles & effects ──────────────────────────────────────────────────────
@@ -888,19 +890,28 @@ func _start_game() -> void:
 	_countdown_timer = 3.3
 	_countdown_text = "3"
 	_set_state(State.COUNTDOWN)
-	Luxodd.level_begin(1)
+	if not _free_play:
+		Luxodd.level_begin(1)
 
 
 func _on_play_pressed() -> void:
+	if _free_play:
+		_start_game()
+		return
 	_play_button.disabled = true
 	_cost_label.text = "Charging..."
-	Luxodd.charge_balance(PLAY_COST, 0000)
+	Luxodd.charge_balance(PLAY_COST, 1234)
 
 
 func _on_play_again_pressed() -> void:
-	_balance_label.text = "%d credits" % _balance
-	_play_button.disabled = _balance < PLAY_COST
-	_cost_label.text = "Costs %d credits" % PLAY_COST if _balance >= PLAY_COST else "Not enough credits"
+	if _free_play:
+		_play_button.disabled = false
+		_balance_label.text = "FREE PLAY"
+		_cost_label.text = "No server — free play mode"
+	else:
+		_balance_label.text = "%d credits" % _balance
+		_play_button.disabled = _balance < PLAY_COST
+		_cost_label.text = "Costs %d credits" % PLAY_COST if _balance >= PLAY_COST else "Not enough credits"
 	_set_state(State.MENU)
 
 
@@ -914,7 +925,7 @@ func _on_connected() -> void:
 	_set_state(State.MENU)
 
 func _on_connection_failed(_error: String) -> void:
-	# If no server available, go straight to free play mode
+	_free_play = true
 	_welcome_label.text = "Welcome!"
 	_balance = 999999
 	_balance_label.text = "FREE PLAY"
