@@ -108,8 +108,9 @@ func connect_to_server() -> void:
 
 	_session_token = token
 	var server_url := _resolve_server_url()
-	var headers := PackedStringArray(["Authorization: Bearer %s" % token])
-	_websocket.connect_to(server_url, headers)
+	# Pass token as query param — Godot Web doesn't support custom WS headers
+	var url := "%s?token=%s" % [server_url, token]
+	_websocket.connect_to(url)
 
 
 func disconnect_from_server() -> void:
