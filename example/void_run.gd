@@ -525,9 +525,9 @@ func _show_game_over() -> void:
 		_best_distance = _score
 	if not _free_play:
 		Luxodd.level_end(1, _score, int(_speed))
-		# Signal session end after a delay so player can see their score
+		# Show the host's continue/restart popup after a delay so player can see their score
 		await get_tree().create_timer(3.0).timeout
-		Luxodd.notify_session_end()
+		Luxodd.send_session_option("both")
 
 
 # ── Particles & effects ──────────────────────────────────────────────────────
