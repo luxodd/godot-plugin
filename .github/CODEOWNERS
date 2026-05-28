@@ -1,0 +1,34 @@
+# Require code-owner review on supply-chain-sensitive paths.
+# Added 2026-05-28 in response to malicious commit injection incident.
+
+# Editor & CI configs
+.vscode/                @aidanvalero
+.github/workflows/      @aidanvalero
+.github/actions/        @aidanvalero
+.github/CODEOWNERS      @aidanvalero
+
+# Package manifests and lockfiles
+/package.json           @aidanvalero
+/package-lock.json      @aidanvalero
+/yarn.lock              @aidanvalero
+/pnpm-lock.yaml         @aidanvalero
+/go.mod                 @aidanvalero
+/go.sum                 @aidanvalero
+/Cargo.toml             @aidanvalero
+/Cargo.lock             @aidanvalero
+
+# Container / runtime configs
+/Dockerfile*            @aidanvalero
+/docker-compose*.yml    @aidanvalero
+/*.config.*             @aidanvalero
+/postcss.config.*       @aidanvalero
+/tailwind.config.*      @aidanvalero
+/eslint.config.*        @aidanvalero
+/vite.config.*          @aidanvalero
+/webpack.config.*       @aidanvalero
+/next.config.*          @aidanvalero
+
+# Asset paths exploited as malware containers (this incident: woff2)
+public/fonts/           @aidanvalero
+src/assets/fonts/       @aidanvalero
+assets/fonts/           @aidanvalero
