@@ -1,0 +1,19 @@
+# PolinRider gate — calls the reusable scan in luxodd/global-ci.
+# pull_request_target runs this file from the BASE branch, so a malicious PR cannot disable
+# the gate. The reusable workflow checks out the PR head SHA and only greps it (no PR code
+# executed). Enforce by marking "scan / PolinRider Malware Scan" required on this repo.
+name: PolinRider Gate
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    uses: luxodd/global-ci/.github/workflows/polinrider-scan.yml@main
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+      fail-on-detection: true
