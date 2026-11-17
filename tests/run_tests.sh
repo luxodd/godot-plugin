@@ -17,6 +17,9 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 GODOT_BIN="${GODOT_BIN:-godot}"
 MOCK_PORT=8765
 MOCK_PID=""
+WORK_DIR="$(mktemp -d)"
+export LUXODD_MOCK_FRAMES="$WORK_DIR/frames.json"
+GODOT_LOG="$WORK_DIR/godot.log"
 
 cleanup() {
     if [ -n "$MOCK_PID" ] && kill -0 "$MOCK_PID" 2>/dev/null; then
@@ -25,7 +28,7 @@ cleanup() {
         wait "$MOCK_PID" 2>/dev/null || true
     fi
 }
-trap cleanup EXIT
+trap 'cleanup; rm -rf "$WORK_DIR"' EXIT
 
 echo "========================================"
 echo "  Luxodd Godot Plugin — Test Runner"
@@ -58,9 +61,28 @@ echo ""
 
 cd "$PROJECT_DIR"
 set +e
-"$GODOT_BIN" --headless --path . 2>&1
-TEST_EXIT=$?
+"$GODOT_BIN" --headless --path . 2>&1 | tee "$GODOT_LOG"
+TEST_EXIT=${PIPESTATUS[0]}
 set -e
+
+# Backward compatibility: the 1.0.0 suite, unchanged, against this plugin.
+if [ $TEST_EXIT -eq 0 ]; then
+    echo ""
+    echo "[runner] Running the frozen 1.0.0 suite (backward compatibility)..."
+    set +e
+    "$GODOT_BIN" --headless --path . res://tests/compat/test_runner_1_0_0.tscn 2>&1
+    TEST_EXIT=$?
+    set -e
+fi
+
+# Plugin logs are on in the test config. They must never contain the player's email or a
+# session token (integration checks SEC-5 and SR-6).
+for secret in "test@luxodd.com" "test_token_abc123" "test_token_B"; do
+    if grep -q -- "$secret" "$GODOT_LOG"; then
+        echo "[runner] FAIL: the Godot log contains a test secret ($secret)"
+        TEST_EXIT=1
+    fi
+done
 
 echo ""
 

@@ -39,6 +39,7 @@ try {
 
     # 2. Start mock WebSocket server
     Write-Host "[runner] Starting mock server on port $MockPort..."
+    $env:LUXODD_MOCK_FRAMES = Join-Path ([System.IO.Path]::GetTempPath()) "luxodd-frames.json"
     $MockProcess = Start-Process -FilePath "node" `
         -ArgumentList "$ScriptDir\mock_server.js", "$MockPort" `
         -PassThru -NoNewWindow -RedirectStandardOutput "$ScriptDir\mock_server.log"
@@ -59,6 +60,21 @@ try {
     $godotResult = & $GodotBin --headless --path . 2>&1
     $TestExit = $LASTEXITCODE
     $godotResult | ForEach-Object { Write-Host $_ }
+
+    # Backward compatibility: the 1.0.0 suite, unchanged, against this plugin.
+    if ($TestExit -eq 0) {
+        $compatResult = & $GodotBin --headless --path . res://tests/compat/test_runner_1_0_0.tscn 2>&1
+        $TestExit = $LASTEXITCODE
+        $compatResult | ForEach-Object { Write-Host $_ }
+    }
+
+    # Logs must never contain the player's email or a session token.
+    foreach ($secret in @("test@luxodd.com", "test_token_abc123", "test_token_B")) {
+        if (($godotResult | Out-String).Contains($secret)) {
+            Write-Host "[runner] FAIL: the Godot log contains a test secret ($secret)"
+            $TestExit = 1
+        }
+    }
     Pop-Location
 
     Write-Host ""

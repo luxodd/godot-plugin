@@ -41,7 +41,8 @@ func connect_to(url: String, headers: PackedStringArray = PackedStringArray()) -
 func disconnect_ws() -> void:
 	_was_connected = false
 	_is_reconnecting = false
-	if _is_connected:
+	var state := _peer.get_ready_state()
+	if state == WebSocketPeer.STATE_OPEN or state == WebSocketPeer.STATE_CONNECTING:
 		_peer.close(1000, "Client disconnect")
 	_is_connected = false
 
@@ -55,6 +56,20 @@ func send_text(message: String) -> void:
 
 func is_socket_connected() -> bool:
 	return _is_connected
+
+
+## True when there is no open socket, no connection attempt and no pending reconnect.
+func is_idle() -> bool:
+	if _is_connected or _is_reconnecting:
+		return false
+	var state := _peer.get_ready_state()
+	return state == WebSocketPeer.STATE_CLOSED
+
+
+## Drops frames queued while disconnected. Used on a session handoff, so nothing written for
+## the old session is sent on the new one.
+func clear_queue() -> void:
+	_pending_queue.clear()
 
 
 func poll() -> void:
@@ -120,4 +135,11 @@ func _try_reconnect() -> void:
 
 	await get_tree().create_timer(_reconnect_delay).timeout
 
+	# A disconnect or a new connect_to() during the wait cancels this attempt.
+	if not _is_reconnecting:
+		return
 	_do_connect()
+	# Cleared once the attempt is under way, so a failed attempt (CLOSED again) leads to the
+	# next one in poll(), and finally to reconnect_failed. In 1.0.0 it stayed set after the
+	# first failure, so the plugin stopped retrying without ever emitting reconnect_failed.
+	_is_reconnecting = false

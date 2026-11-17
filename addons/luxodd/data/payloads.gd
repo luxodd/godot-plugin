@@ -39,3 +39,15 @@ static func user_data_payload(data: Variant) -> Dictionary:
 
 static func strategic_betting_result_payload(results: Array) -> Dictionary:
 	return {"results": results}
+
+
+static func score_update_payload(request_id: int, level: int, score: int) -> Dictionary:
+	return {"request_id": request_id, "score": score, "level": level}
+
+
+static func leaderboard_around_score_payload(target_score: int) -> Dictionary:
+	return {"target_score": target_score}
+
+
+static func tournament_info_payload(request_id: String) -> Dictionary:
+	return {"request_id": request_id}

@@ -20,6 +20,16 @@ const GET_GAME_SESSION_INFO := "GetGameSessionInfoRequest"
 const SEND_STRATEGIC_BETTING_RESULT := "SendStrategicBettingResultRequest"
 const GET_BETTING_SESSION_MISSIONS := "GetBettingSessionMissionsRequest"
 
+# Added in 1.1.0, same wire strings as the Unity plugin 1.3.0-preview.1.
+const GET_MERCHANT_PRIZE_INFO := "GetMerchantPrizeInfoRequest"
+const LEADERBOARD_AROUND_SCORE := "leaderboard_around_score_request"
+const SCORE_UPDATE := "score_update"
+const GET_TOURNAMENT_INFO := "GetTournamentInfoRequest"
+
+# Responses routed by request_id instead of the request queue.
+const SCORE_UPDATE_RESPONSE := "score_update_response"
+const GET_TOURNAMENT_INFO_RESPONSE := "GetTournamentInfoResponse"
+
 # Response type -> Request type mapping for routing server responses
 const RESPONSE_TO_REQUEST := {
 	"GetProfileResponse": GET_PROFILE,
@@ -41,4 +51,10 @@ const RESPONSE_TO_REQUEST := {
 	"GetGameSessionInfoResponse": GET_GAME_SESSION_INFO,
 	"SendStrategicBettingResultResponse": SEND_STRATEGIC_BETTING_RESULT,
 	"GetBettingSessionMissionsResponse": GET_BETTING_SESSION_MISSIONS,
+	"GetMerchantPrizeInfoResponse": GET_MERCHANT_PRIZE_INFO,
+	"LeaderboardAroundScoreResponse": LEADERBOARD_AROUND_SCORE,
+	"leaderboard_around_score_response": LEADERBOARD_AROUND_SCORE,
+	"ScoreUpdateResponse": SCORE_UPDATE,
+	"score_update_response": SCORE_UPDATE,
+	"GetTournamentInfoResponse": GET_TOURNAMENT_INFO,
 }

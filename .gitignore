@@ -20,4 +20,8 @@ desktop.ini
 *~
 
 # Example addon junction (symlinked from root)
-example/addons/
+example/addons
+
+# Developer token for editor/desktop testing (never exported)
+luxodd_dev_config.tres
+tests/.mock_frames.json

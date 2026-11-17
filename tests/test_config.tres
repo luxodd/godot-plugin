@@ -10,3 +10,6 @@ max_reconnect_attempts = 2
 reconnect_delay_seconds = 0.3
 health_check_interval_seconds = 2.0
 command_timeout_seconds = 4.0
+logs_enabled = true
+built_in_score_reporting = true
+score_update_interval_seconds = 0.3
