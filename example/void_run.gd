@@ -535,7 +535,7 @@ func _show_game_over() -> void:
 		# One level_end per run, with the score shown (TP-1); the plugin sends the final
 		# score_update first. The popup is requested only once level_end is answered (ES-3).
 		var shown_at := Time.get_ticks_msec()
-		Luxodd.level_end(1, _score, int(_speed))
+		Luxodd.level_end(1, _score)  # 1.0.0 passed the speed in the accuracy slot
 		await _wait_level_end_ok(5.0)
 		if not Luxodd.is_arcade:
 			Luxodd.get_leaderboard()  # on cabinets the platform layout shows the leaderboard
