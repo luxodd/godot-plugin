@@ -34,8 +34,22 @@ jobs:
 
       - name: Start mock server
         run: |
-          node tests/mock_server.js 8765 &
+          echo "LUXODD_MOCK_FRAMES=$RUNNER_TEMP/frames.json" >> "$GITHUB_ENV"
+          LUXODD_MOCK_FRAMES="$RUNNER_TEMP/frames.json" node tests/mock_server.js 8765 &
           sleep 1
 
       - name: Run tests
-        run: godot --headless --path . 2>&1
+        run: |
+          set -o pipefail
+          godot --headless --path . 2>&1 | tee "$RUNNER_TEMP/godot.log"
+
+      - name: Run the frozen 1.0.0 suite against this plugin (backward compatibility)
+        run: godot --headless --path . res://tests/compat/test_runner_1_0_0.tscn 2>&1
+
+      - name: Logs never contain the player's email or a session token
+        run: |
+          for secret in "test@luxodd.com" "test_token_abc123" "test_token_B"; do
+            if grep -q -- "$secret" "$RUNNER_TEMP/godot.log"; then
+              echo "::error::The Godot log contains a test secret ($secret)"; exit 1
+            fi
+          done
