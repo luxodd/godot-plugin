@@ -22,6 +22,8 @@ export LUXODD_MOCK_FRAMES="$WORK_DIR/frames.json"
 GODOT_LOG="$WORK_DIR/godot.log"
 
 cleanup() {
+    # Stop any Godot this script started, even on Ctrl-C or failure.
+    pkill -P $$ 2>/dev/null || true
     if [ -n "$MOCK_PID" ] && kill -0 "$MOCK_PID" 2>/dev/null; then
         echo "[runner] Stopping mock server (PID $MOCK_PID)..."
         kill "$MOCK_PID" 2>/dev/null || true
@@ -77,6 +79,11 @@ fi
 
 # Plugin logs are on in the test config. They must never contain the player's email or a
 # session token (integration checks SEC-5 and SR-6).
+# Server notices and unknown types must not warn: a warning is a console error in a web build.
+if grep -q -- "Unknown response type" "$GODOT_LOG"; then
+    echo "[runner] FAIL: the plugin warned about a server message type"
+    TEST_EXIT=1
+fi
 for secret in "test@luxodd.com" "test_token_abc123" "test_token_B"; do
     if grep -q -- "$secret" "$GODOT_LOG"; then
         echo "[runner] FAIL: the Godot log contains a test secret ($secret)"
