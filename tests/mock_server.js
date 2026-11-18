@@ -160,6 +160,8 @@ wss.on("connection", (ws, req) => {
   const token = url.searchParams.get("token") || "(none)";
   record.connections.push({ conn: connId, path: url.pathname, token });
   saveRecord();
+  // Newer servers greet every socket with connect_ack; the plugin must ignore it quietly.
+  ws.send(JSON.stringify({ msgver: "1", type: "connect_ack", ts: new Date().toISOString(), status: 200, payload: {} }));
   // Test tokens only; never point this server at real credentials.
   console.log(`[mock-server] client connected (#${connectionCount}, path=${url.pathname})`);
 

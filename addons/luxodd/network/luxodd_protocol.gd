@@ -50,7 +50,7 @@ func _on_message(raw_json: String) -> void:
 	var parsed: Variant = JSON.parse_string(raw_json)
 	if parsed == null or not parsed is Dictionary:
 		# Never the body: it can carry the player's email, name and saved data.
-		LuxoddLog.warn("Ignoring a server message that is not a JSON object (%d chars)." % raw_json.length())
+		LuxoddLog.info("Ignoring a server message that is not a JSON object (%d chars)." % raw_json.length())
 		return
 
 	var response: Dictionary = parsed
@@ -58,10 +58,18 @@ func _on_message(raw_json: String) -> void:
 	var status_code: int = int(response.get("status", 0))
 	var payload: Variant = response.get("payload", {})
 
+	# Server notices that answer no request (connect_ack on connect, on newer servers).
+	if LuxoddCommandTypes.SERVER_NOTICES.has(response_type):
+		LuxoddLog.info("server notice %s" % response_type)
+		return
+
 	# Map the response type back to the originating request type
 	var request_type: String = _resolve_request_type(response_type)
 	if request_type.is_empty():
-		LuxoddLog.warn("Unknown response type: %s" % response_type)
+		# Ignored like Unity ignores types it does not know, and only logged when logs are on:
+		# a warning reaches the browser console as an error (integration check SR-6), and
+		# servers add message types over time.
+		LuxoddLog.info("ignoring unknown message type: %s" % response_type)
 		return
 
 	LuxoddLog.info("recv %s, status %d, %d chars" % [response_type, status_code, raw_json.length()])
