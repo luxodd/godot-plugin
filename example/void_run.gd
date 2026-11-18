@@ -79,6 +79,14 @@ var _grid_offset: float = 0.0
 var _free_play: bool = false
 var _connected_once: bool = false
 var _last_reported_score: int = -1
+# Merchant prize (campaign) from GetMerchantPrizeInfoRequest. The goal comes from the server
+# (PZ-3); the game never decides a prize was won: tickets come only from level_end (PZ-5).
+const PRIZE_WIN_SCREEN_SECONDS := 10
+var _prize_active: bool = false
+var _prize_goal: int = 0
+var _prize_name: String = ""
+var _goal_reached: bool = false
+var _tickets_shown: int = 0
 var _username: String = "Player"
 var _best_distance: int = 0
 
@@ -137,6 +145,7 @@ func _ready() -> void:
 	Luxodd.command_error.connect(_on_command_error)
 	Luxodd.host_action_received.connect(_on_host_action)
 	Luxodd.fast_restart_failed.connect(_on_fast_restart_failed)
+	Luxodd.prize_won.connect(_on_prize_won)
 	Luxodd.connect_to_server()
 
 
@@ -279,7 +288,10 @@ func _update_game(delta: float) -> void:
 	_score = int(_distance / 10.0)
 	if not _free_play and _score != _last_reported_score:
 		_last_reported_score = _score
-		Luxodd.report_score(1, _score)  # live leaderboard and prize progress (TP-2)
+		Luxodd.report_score(1, _score)  # live leaderboard and prize progress (TP-2, PZ-2)
+	if _prize_active and _prize_goal > 0 and not _goal_reached and _score >= _prize_goal:
+		_show_goal_reached()
+		return
 
 	# Physics with apex float
 	var grav_mult := APEX_GRAVITY_MULT if (absf(_vel_y) < 130.0 and not _on_ground) else 1.0
@@ -904,6 +916,12 @@ func _get_reached_tier() -> Array:
 
 
 func _update_tier_hud() -> void:
+	if _prize_active and _prize_goal > 0:
+		# Campaign play: the server's goal replaces the cosmetic distance tiers.
+		var to_go: int = maxi(0, _prize_goal - _score)
+		_tier_label.text = "PRIZE GOAL %dm  (%dm to go)" % [_prize_goal, to_go]
+		_tier_label.modulate = Color.GOLD if to_go < 50 else Color.WHITE
+		return
 	var next: Array = []
 	for tier in TIERS:
 		if _score < tier[0]:
@@ -1008,10 +1026,46 @@ func _on_profile(profile: Dictionary) -> void:
 	_welcome_label.text = "Welcome, %s" % _username
 
 func _on_prize_info(is_active: bool, prize: Dictionary) -> void:
-	if not is_active or prize.is_empty():
+	# Shown before play and in the HUD (PZ-1); goal_score is used as sent (PZ-3).
+	_prize_active = is_active and not prize.is_empty()
+	if not _prize_active:
 		return
-	var goal := int(prize.get("goal_score", 0))
-	_tier_label.text = "PRIZE at %dm" % goal if goal > 0 else "PRIZE ACTIVE"
+	_prize_goal = int(prize.get("goal_score", 0))
+	_prize_name = str(prize.get("prize_name", "Prize"))
+	_welcome_label.text = "%s: reach %dm" % [_prize_name, _prize_goal] if _prize_goal > 0 else _prize_name
+	_update_tier_hud()
+
+
+## PZ-4: once per session, when the server's goal is reached. The run ends with its honest
+## level_end; the screen says the goal was reached and shows tickets only if the server's reply
+## carries them (prize_won, PZ-5); it returns to the arcade by itself after its countdown.
+func _show_goal_reached() -> void:
+	_goal_reached = true
+	_set_state(State.GAME_OVER)
+	_play_again_button.visible = false
+	_leaderboard_list.visible = false
+	_result_title.text = "GOAL REACHED!"
+	_result_title.modulate = Color.GOLD
+	_final_dist_label.text = "%dm" % _score
+	_tier_result_label.text = "Checking your prize..."
+	_tier_result_label.modulate = Color(0.8, 0.8, 0.8)
+	Luxodd.level_end(1, _score)
+	await _wait_level_end_ok(5.0)
+	if _tickets_shown == 0:
+		_tier_result_label.text = "%s goal reached" % _prize_name
+	for left in range(PRIZE_WIN_SCREEN_SECONDS, 0, -1):
+		_connecting_label.visible = false
+		_final_dist_label.text = "%dm  -  returning in %ds" % [_score, left]
+		await get_tree().create_timer(1.0).timeout
+	Luxodd.back_to_system()
+
+
+func _on_prize_won(tickets: Array) -> void:
+	# The server decided; the game only shows it.
+	_tickets_shown = tickets.size()
+	_tier_result_label.text = "%s won! %d ticket%s issued" % [
+		_prize_name, tickets.size(), "" if tickets.size() == 1 else "s"]
+	_tier_result_label.modulate = Color.GOLD
 
 func _on_leaderboard(data: Dictionary) -> void:
 	_leaderboard_list.clear()
