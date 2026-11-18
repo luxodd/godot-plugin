@@ -26,6 +26,9 @@ const LEADERBOARD_AROUND_SCORE := "leaderboard_around_score_request"
 const SCORE_UPDATE := "score_update"
 const GET_TOURNAMENT_INFO := "GetTournamentInfoRequest"
 
+# Messages the server sends on its own, answering no request. Ignored quietly.
+const SERVER_NOTICES := ["connect_ack"]
+
 # Responses routed by request_id instead of the request queue.
 const SCORE_UPDATE_RESPONSE := "score_update_response"
 const GET_TOURNAMENT_INFO_RESPONSE := "GetTournamentInfoResponse"
