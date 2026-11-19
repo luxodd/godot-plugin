@@ -6,6 +6,9 @@ Parity with the Unity plugin 1.3.0-preview.1 (`unity-plugin-development`
 `feat/standard-score-updates`). Additive: every 1.0.0 method, signal and wire frame is kept.
 
 ### Added
+- `game_end(score, level = 1, ...)` and the `game_end_ok` signal: the call a game makes when the
+  player's game is over. It sends the same `level_end` frame. `level_end()` and `level_end_ok`
+  are now legacy aliases, kept so existing games keep working.
 - Built-in live score reporting: `report_score(level, score)`. Tracking starts on the
   `level_begin` ack; `score_update` goes out every 2 s; `level_end` sends the final score first,
   so the last `score_update` equals the `level_end` score. Same wire format as Unity.

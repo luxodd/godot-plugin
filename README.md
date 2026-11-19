@@ -67,7 +67,7 @@ addons/luxodd/
 
 ## Usage
 
-A complete run: connect, show the prize, report the score while playing, send one `level_end`,
+A complete run: connect, show the prize, report the score while playing, send one `game_end`,
 ask for one popup, then follow the player's choice.
 
 ```gdscript
@@ -79,7 +79,7 @@ func _ready() -> void:
     Luxodd.connected.connect(_on_connected)
     Luxodd.profile_received.connect(_on_profile)
     Luxodd.merchant_prize_info_received.connect(_on_prize)
-    Luxodd.level_end_ok.connect(_on_level_end_ok)
+    Luxodd.game_end_ok.connect(_on_game_end_ok)
     Luxodd.host_action_received.connect(_on_host_action)
     Luxodd.fast_restart_failed.connect(func(_code, _reason): Luxodd.back_to_system_with_error())
     Luxodd.runtime_context_changed.connect(_on_runtime_context)
@@ -101,9 +101,9 @@ func add_points(points: int) -> void:
     Luxodd.report_score(1, _score)  # sent as score_update every 2 s
 
 func game_over() -> void:
-    Luxodd.level_end(1, _score)     # the final score_update goes out first
+    Luxodd.game_end(_score)         # the final score_update goes out first
 
-func _on_level_end_ok() -> void:
+func _on_game_end_ok() -> void:
     Luxodd.send_session_option_fast_restart(true)   # Continue, Restart or End
 
 func _on_host_action(action: String) -> void:
@@ -202,7 +202,8 @@ game, fed by `score_update`, so the game does not need its own.
 | Method | Signal |
 |---|---|
 | `level_begin(level)` | `level_begin_ok()` |
-| `level_end(level, score, ...)` | `level_end_ok()`; `prize_won(tickets)` **1.1.0** when the reply carries `prize_tickets` (already posted to the page as `{type: "prize_won", tickets}`) |
+| `game_end(score, level = 1, ...)` **1.1.0** | `game_end_ok()` (and `level_end_ok()`); `prize_won(tickets)` **1.1.0** when the reply carries `prize_tickets` (already posted to the page as `{type: "prize_won", tickets}`) |
+| `level_end(level, score, ...)` | **Legacy alias** of `game_end`, kept only so existing games keep working. Same frame, same signals. New games call `game_end`. |
 | `report_score(level, score)` **1.1.0** | `score_update_handled(response)` / `score_update_failed(code, reason)` |
 | `get_leaderboard()` | `leaderboard_received(data: Dictionary)` |
 | `get_leaderboard_around_score(target_score)` **1.1.0** | `leaderboard_around_score_received(data: Dictionary)` |
@@ -211,9 +212,14 @@ game, fed by `score_update`, so the game does not need its own.
 
 **Live score:** tracking starts when `level_begin` is acknowledged. The plugin sends
 `{type: "score_update", version: "1.0", payload: {request_id, score, level}}` every
-`score_update_interval_seconds` with the latest `report_score` value, one at a time. `level_end`
+`score_update_interval_seconds` with the latest `report_score` value, one at a time. `game_end`
 sends the final value first (waiting at most 2 s), so the last `score_update` always equals the
-`level_end` score. The cabinet's live leaderboard panel and prize progress read these updates.
+`game_end` score. The cabinet's live leaderboard panel and prize progress read these updates.
+
+**`game_end` and `level_end`:** call `game_end(score)` once when the player's game is over.
+It sends the server's `level_end` command, which is the name the server, leaderboards and prizes
+use, so nothing changes on the wire. `level_end()` and `level_end_ok` are legacy names, kept only
+as aliases for games written against 1.0.0.
 
 ### Prizes and tournaments **1.1.0**
 

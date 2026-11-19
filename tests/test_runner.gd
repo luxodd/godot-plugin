@@ -97,6 +97,18 @@ func _run_tests() -> void:
 	var le = await _wait_for_signal(Luxodd.level_end_ok, 3.0)
 	_assert(le != null, "Should receive level_end OK")
 
+	# ── Test 7b: game_end (level_end is now a legacy alias) ────────────────
+	_begin("game_end")
+	Luxodd.level_begin(1)
+	await _wait_for_signal(Luxodd.level_begin_ok, 3.0)
+	Luxodd.game_end(4321)
+	var ge = await _wait_for_signal(Luxodd.game_end_ok, 4.0)
+	_assert(ge != null, "game_end emits game_end_ok")
+	var ge_frame := _last_frame("level_end")
+	_assert(ge_frame.get("payload", {}).get("score") == 4321,
+		"game_end sends the level_end frame with the score")
+	_assert(ge_frame.get("payload", {}).get("level") == 1, "game_end defaults to level 1")
+
 	# ── Test 8: Leaderboard ───────────────────────────────────────────────
 	_begin("get_leaderboard")
 	Luxodd.get_leaderboard()
