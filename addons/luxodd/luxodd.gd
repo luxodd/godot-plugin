@@ -43,7 +43,10 @@ signal balance_added()
 signal balance_charged()
 signal health_check_ok()
 signal level_begin_ok()
+## Legacy: the reply to level_end. Kept only as an alias; new games listen for game_end_ok.
 signal level_end_ok()
+## The server accepted the game_end result. Emitted together with level_end_ok.
+signal game_end_ok()
 signal leaderboard_received(data: Dictionary)
 signal user_data_received(data: Variant)
 signal user_data_set()
@@ -325,8 +328,23 @@ func level_begin(level: int) -> void:
 	)
 
 
-## Sends the run's result. While score reporting is tracking the run, the final score goes out
-## as an immediate score_update first (at most 2 s), so the last score_update equals this score.
+## Sends the final result when the player's game (run) is over. This is the call every game
+## makes. While score reporting is tracking the run, the final score goes out as an immediate
+## score_update first (at most 2 s), so the last score_update equals this score.
+## On the wire it is the level_end command, so the server, leaderboards and prizes are unchanged.
+func game_end(
+	score: int,
+	level: int = 1,
+	accuracy: int = 0,
+	time_taken: int = 0,
+	enemies_killed: int = 0,
+	completion_percentage: int = 0,
+) -> void:
+	level_end(level, score, accuracy, time_taken, enemies_killed, completion_percentage)
+
+
+## LEGACY: alias of game_end(), kept only so games built on 1.0.0 keep working.
+## New games call game_end(score). Same wire frame (level_end), same signals.
 func level_end(
 	level: int,
 	score: int,
@@ -870,6 +888,7 @@ func _on_response(request_type: String, status_code: int, payload: Variant, enve
 		LuxoddCommandTypes.LEVEL_END:
 			_forward_prize_tickets(payload)
 			level_end_ok.emit()
+			game_end_ok.emit()
 		LuxoddCommandTypes.LEADERBOARD:
 			leaderboard_received.emit(payload if payload is Dictionary else {})
 		LuxoddCommandTypes.LEADERBOARD_AROUND_SCORE:
