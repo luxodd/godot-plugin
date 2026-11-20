@@ -4,6 +4,7 @@ extends EditorPlugin
 const AUTOLOAD_NAME := "Luxodd"
 const AUTOLOAD_PATH := "res://addons/luxodd/luxodd.gd"
 const CONFIG_PATH := "res://addons/luxodd/config/luxodd_config.tres"
+const DEV_CONFIG_PATH := "res://luxodd_dev_config.tres"
 
 var _export_plugin: LuxoddExportPlugin
 
@@ -37,7 +38,9 @@ func _open_dev_token_dialog() -> void:
 
 
 func _is_token_empty() -> bool:
-	if not ResourceLoader.exists(CONFIG_PATH):
-		return true
-	var config: LuxoddConfig = load(CONFIG_PATH)
-	return config == null or config.developer_debug_token.is_empty()
+	for path in [DEV_CONFIG_PATH, CONFIG_PATH]:
+		if ResourceLoader.exists(path):
+			var config: LuxoddConfig = load(path)
+			if config != null and not config.developer_debug_token.is_empty():
+				return false
+	return true

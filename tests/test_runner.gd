@@ -29,11 +29,12 @@ func _ready() -> void:
 
 	# Inject test config into the autoload
 	Luxodd._config = config
+	LuxoddLog.enabled = config.logs_enabled
 	Luxodd._websocket.configure(config.max_reconnect_attempts, config.reconnect_delay_seconds)
 
-	# Global timeout — if tests hang, bail after 15 seconds
+	# Global timeout — if tests hang, bail after 60 seconds
 	_timeout_timer = Timer.new()
-	_timeout_timer.wait_time = 15.0
+	_timeout_timer.wait_time = 60.0
 	_timeout_timer.one_shot = true
 	_timeout_timer.timeout.connect(_on_global_timeout)
 	add_child(_timeout_timer)
@@ -155,6 +156,9 @@ func _run_tests() -> void:
 	_assert(health != null, "Should receive health check OK")
 	Luxodd.stop_health_check()
 
+	# ── 1.1.0 tests ──────────────────────────────────────────────────────
+	await _run_parity_tests()
+
 	# ── Test 17: Disconnect ───────────────────────────────────────────────
 	_begin("disconnect")
 	Luxodd.disconnect_from_server()
@@ -195,6 +199,212 @@ func _run_tests() -> void:
 		LuxoddCommandTypes.RESPONSE_TO_REQUEST["GetProfileResponse"] == "GetProfileRequest",
 		"GetProfileResponse should map to GetProfileRequest"
 	)
+
+
+# ── 1.1.0: Unity parity ──────────────────────────────────────────────────────
+
+func _run_parity_tests() -> void:
+	_begin("merchant_prize_info")
+	Luxodd.get_merchant_prize_info()
+	var prize = await _wait_for_signal(Luxodd.merchant_prize_info_received, 3.0)
+	_assert(prize == true, "is_active should be true")
+	var prize_frame := _last_frame("GetMerchantPrizeInfoRequest")
+	_assert(prize_frame.has("payload") and prize_frame["payload"] == null and not prize_frame.has("version"),
+		"GetMerchantPrizeInfoRequest wire format matches Unity: {type, payload: null}")
+
+	_begin("leaderboard_around_score")
+	Luxodd.get_leaderboard_around_score(1000)
+	var around = await _wait_for_signal(Luxodd.leaderboard_around_score_received, 3.0)
+	_assert(around is Dictionary and around.has("leaderboard"), "Should receive leaderboard around score")
+	var around_frame := _last_frame("leaderboard_around_score_request")
+	_assert(around_frame.get("msgver") == "1" and around_frame.get("payload", {}).get("target_score") == 1000,
+		"leaderboard_around_score_request carries msgver 1 and target_score")
+
+	_begin("tournament_info")
+	Luxodd.get_tournament_info()
+	var tournament = await _wait_for_signal(Luxodd.tournament_info_received, 3.0)
+	_assert(tournament is Dictionary and tournament.get("outcome") == "active", "Tournament outcome should be active")
+	if tournament is Dictionary:
+		_assert(tournament.get("dynamic_hardness") == 40 and tournament.get("min_score") == 250,
+			"Tournament hardness 40, min_score 250")
+	var t_frame := _last_frame("GetTournamentInfoRequest")
+	_assert(t_frame.get("msgver") == "1" and str(t_frame.get("payload", {}).get("request_id", "")).length() == 36,
+		"GetTournamentInfoRequest carries msgver 1 and a UUID request_id")
+
+	_begin("tournament_validation")
+	var bad_id := "00000000-0000-4000-8000-000000000001"
+	Luxodd._tournament_requests[bad_id] = Luxodd._now() + 5.0
+	var got_bad: Array = []
+	var bad_cb := func(r): got_bad.append(r)
+	Luxodd.tournament_info_received.connect(bad_cb, CONNECT_ONE_SHOT)
+	Luxodd._on_tournament_info_response({"type": "GetTournamentInfoResponse", "msgver": "1", "request_id": bad_id,
+		"ts": "2026-11-17T00:00:00Z", "status": 200, "is_active": true,
+		"payload": {"tournament_id": "t", "dynamic_hardness": 35, "min_score": 0}})
+	_assert(got_bad.size() == 1 and got_bad[0].get("outcome") == "malformed", "Hardness 35 is rejected as malformed")
+
+	_begin("score_update_builtin")
+	Luxodd.level_begin(2)
+	await _wait_for_signal(Luxodd.level_begin_ok, 3.0)
+	_assert(Luxodd.is_score_tracking(), "Tracking starts on the level_begin ack")
+	for i in range(8):
+		Luxodd.report_score(2, (i + 1) * 100)
+		await get_tree().create_timer(0.15).timeout
+	var handled = await _wait_for_signal(Luxodd.score_update_handled, 2.0)
+	_assert(handled is Dictionary and handled.get("result") == "applied", "score_update answered with applied")
+	Luxodd.level_end(2, 1234)
+	await _wait_for_signal(Luxodd.level_end_ok, 4.0)
+	_assert(not Luxodd.is_score_tracking(), "Tracking stops at level_end")
+	var frames := _frames()
+	var last_su := -1
+	var le_index := -1
+	for i in range(frames.size()):
+		var t: String = frames[i]["request"].get("type", "")
+		if t == "score_update":
+			last_su = i
+		elif t == "level_end" and frames[i]["request"].get("payload", {}).get("score") == 1234:
+			le_index = i
+	_assert(last_su >= 0 and le_index > last_su, "A score_update precedes level_end")
+	if last_su >= 0:
+		var su: Dictionary = frames[last_su]["request"]
+		_assert(su.get("version") == "1.0" and su["payload"].get("score") == 1234 and su["payload"].get("level") == 2,
+			"The last score_update equals the level_end score (TP-2), version 1.0")
+		_assert(su["payload"].has("request_id"), "score_update carries request_id")
+	var count := 0
+	for f in frames:
+		if f["request"].get("type") == "score_update":
+			count += 1
+	_assert(count >= 3, "Periodic score_update frames were sent during play (%d)" % count)
+
+	_begin("score_update_disabled")
+	Luxodd._config.built_in_score_reporting = false
+	Luxodd.level_begin(3)
+	await _wait_for_signal(Luxodd.level_begin_ok, 3.0)
+	_assert(not Luxodd.is_score_tracking(), "No tracking when built_in_score_reporting is off")
+	Luxodd.level_end(3, 10)
+	await _wait_for_signal(Luxodd.level_end_ok, 3.0)
+	Luxodd._config.built_in_score_reporting = true
+
+	_begin("prize_won")
+	Luxodd.level_end(1, 7777)
+	var tickets = await _wait_for_signal(Luxodd.prize_won, 3.0)
+	_assert(tickets is Array and tickets.size() == 1, "prize_tickets from level_end are forwarded as prize_won")
+
+	_begin("runtime_context")
+	Luxodd._on_bridge_session("", "", {"platform": "arcade", "arcadeLayout": "rook"})
+	_assert(Luxodd.is_arcade and Luxodd.is_rook and not Luxodd.is_pawn, "arcade/rook from luxodd:session runtime")
+	Luxodd._on_bridge_session("", "", {"platform": "arcade", "arcadeLayout": "bishop"})
+	_assert(Luxodd.is_arcade and Luxodd.arcade_layout == "", "Unknown layout maps to none")
+	Luxodd._on_bridge_session("", "", {})
+	_assert(not Luxodd.has_host_runtime_context and Luxodd.runtime_platform == "", "No runtime clears the context")
+
+	_begin("session_event_repeat_ignored")
+	var conns_before := _connections().size()
+	Luxodd._on_bridge_session(Luxodd._session_token, "", {})
+	await get_tree().create_timer(0.3).timeout
+	_assert(_connections().size() == conns_before and Luxodd.is_connected, "A repeat of the current session does not reconnect")
+
+	_begin("fast_restart_continue")
+	Luxodd.send_session_option_fast_restart(true)
+	var cont: Array = []
+	var cont_cb := func(a): cont.append(a)
+	Luxodd.host_action_received.connect(cont_cb, CONNECT_ONE_SHOT)
+	Luxodd._on_bridge_action("continue")
+	_assert(cont == ["continue"] and not Luxodd._fast_restart_pending, "Continue passes through and clears Fast Restart")
+
+	_begin("fast_restart_handoff")
+	Luxodd.start_health_check(0.5)
+	Luxodd.level_begin(1)
+	await _wait_for_signal(Luxodd.level_begin_ok, 3.0)
+	Luxodd.send_session_option_fast_restart(true)
+	var actions: Array = []
+	var act_cb := func(a): actions.append(a)
+	Luxodd.host_action_received.connect(act_cb)
+	# The page dispatches luxodd:session with token B, then posts {action: "restart", jwt: B}.
+	Luxodd._on_bridge_session("test_token_B", "", {"platform": "arcade", "arcadeLayout": "pawn"})
+	Luxodd._on_bridge_jwt("test_token_B")
+	Luxodd._on_bridge_action("restart")
+	_assert(actions.is_empty(), "restart is held until the replacement session is up")
+	var replaced = await _wait_for_signal(Luxodd.session_replaced, 4.0)
+	_assert(replaced != null, "session_replaced fires")
+	await get_tree().process_frame
+	_assert(actions == ["restart"], "host_action_received(restart) follows the handoff")
+	Luxodd.host_action_received.disconnect(act_cb)
+	var conns := _connections()
+	_assert(conns.size() > 0 and conns[-1].get("token") == "test_token_B", "The new socket uses token B")
+	_assert(Luxodd.is_pawn, "Runtime context from the handoff event applied")
+	_assert(not Luxodd.is_score_tracking(), "Score tracking of the old session stopped")
+	_assert(not Luxodd._health_timer.is_stopped(), "Health check resumed on the new session")
+	var health_b = await _wait_for_signal(Luxodd.health_check_ok, 3.0)
+	_assert(health_b != null, "Health check answered on the new session")
+	var new_conn: int = conns[-1].get("conn")
+	Luxodd.level_begin(1)
+	await _wait_for_signal(Luxodd.level_begin_ok, 3.0)
+	var lb_frame := _last_frame("level_begin")
+	_assert(not lb_frame.is_empty(), "level_begin on the replacement session")
+	var lb_conn := -1
+	for f in _frames():
+		if f["request"].get("type") == "level_begin":
+			lb_conn = f.get("conn")
+	_assert(lb_conn == new_conn, "That level_begin went over the new connection")
+	Luxodd.level_end(1, 5)
+	await _wait_for_signal(Luxodd.level_end_ok, 3.0)
+
+	_begin("fast_restart_busy")
+	Luxodd.send_session_option_fast_restart()
+	Luxodd._on_bridge_action("restart")  # selected, no token yet
+	var busy = await _wait_for_signal_now(Luxodd.fast_restart_failed, func(): Luxodd.send_session_option_fast_restart())
+	_assert(busy == 409, "A second Fast Restart during a handoff is refused with 409")
+	Luxodd._clear_fast_restart()
+
+	_begin("ws_endpoint")
+	_assert(Luxodd._resolve_endpoint() == "ws://localhost:8765/ws", "Desktop endpoint is <server_address>/ws")
+	_assert(Luxodd._resolve_server_url() == "ws://localhost:8765", "1.0.0 _resolve_server_url unchanged")
+
+	_begin("protocol_envelopes")
+	var proto_frames := _frames()
+	var legacy_ok := true
+	for f in proto_frames:
+		var r: Dictionary = f["request"]
+		if r.get("type") in ["GetProfileRequest", "level_begin", "health_status_check", "SetUserDataRequest"]:
+			if r.get("version") != "1.0" or not r.get("payload") is Dictionary:
+				legacy_ok = false
+	_assert(legacy_ok, "1.0.0 commands keep {type, version: 1.0, payload: {}}")
+
+
+func _wait_for_signal_now(sig: Signal, trigger: Callable) -> Variant:
+	var result: Array = []
+	var cb := func(a = null, _b = null): result.append(a)
+	sig.connect(cb, CONNECT_ONE_SHOT)
+	trigger.call()
+	if sig.is_connected(cb):
+		sig.disconnect(cb)
+	return result[0] if result.size() > 0 else null
+
+
+func _record() -> Dictionary:
+	var path := OS.get_environment("LUXODD_MOCK_FRAMES")
+	if path.is_empty():
+		path = ProjectSettings.globalize_path("res://tests/.mock_frames.json")
+	if not FileAccess.file_exists(path):
+		return {"connections": [], "frames": []}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return parsed if parsed is Dictionary else {"connections": [], "frames": []}
+
+
+func _frames() -> Array:
+	return _record().get("frames", [])
+
+
+func _connections() -> Array:
+	return _record().get("connections", [])
+
+
+func _last_frame(type: String) -> Dictionary:
+	var frames := _frames()
+	for i in range(frames.size() - 1, -1, -1):
+		if frames[i]["request"].get("type") == type:
+			return frames[i]["request"]
+	return {}
 
 
 # ── Test helpers ──────────────────────────────────────────────────────────────
