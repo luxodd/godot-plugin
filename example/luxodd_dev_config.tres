@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 server_address = "ws://localhost:8765"
-developer_debug_token = "dev_test_token"
+developer_debug_token = ""
 max_reconnect_attempts = 3
 reconnect_delay_seconds = 0.5
 health_check_interval_seconds = 2.0

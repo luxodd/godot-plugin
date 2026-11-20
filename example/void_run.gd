@@ -1,7 +1,11 @@
 extends Node2D
 
-## VOID RUN — One-button auto-runner with Luxodd betting integration.
+## VOID RUN — One-button auto-runner, the Luxodd Godot plugin's example game.
 ## Controls: Space / Enter / Gamepad A/B to jump.
+##
+## Integration (plugin 1.1.0): one level_begin and one level_end per run, live score through
+## Luxodd.report_score, prize info at start, one combined Continue / Fast Restart / End popup,
+## back_to_system() on End. The game never charges or adds credit (integration check CR-1).
 
 # ── Tuning ────────────────────────────────────────────────────────────────────
 
@@ -20,7 +24,6 @@ const OBSTACLE_MIN_GAP := 280.0
 const OBSTACLE_MAX_GAP := 420.0
 const SAFE_ZONE := 500.0
 
-const PLAY_COST := 100
 const AFTERIMAGE_COUNT := 5
 
 const TIERS: Array = [
@@ -74,7 +77,8 @@ var _grid_offset: float = 0.0
 
 # Platform
 var _free_play: bool = false
-var _balance: int = 0
+var _connected_once: bool = false
+var _last_reported_score: int = -1
 var _username: String = "Player"
 var _best_distance: int = 0
 
@@ -128,11 +132,11 @@ func _ready() -> void:
 	Luxodd.connected.connect(_on_connected)
 	Luxodd.connection_failed.connect(_on_connection_failed)
 	Luxodd.profile_received.connect(_on_profile)
-	Luxodd.balance_received.connect(_on_balance)
-	Luxodd.balance_charged.connect(_on_charged)
+	Luxodd.merchant_prize_info_received.connect(_on_prize_info)
 	Luxodd.leaderboard_received.connect(_on_leaderboard)
 	Luxodd.command_error.connect(_on_command_error)
 	Luxodd.host_action_received.connect(_on_host_action)
+	Luxodd.fast_restart_failed.connect(_on_fast_restart_failed)
 	Luxodd.connect_to_server()
 
 
@@ -174,7 +178,6 @@ func _input(event: InputEvent) -> void:
 		if any_press:
 			if _free_play:
 				_welcome_label.text = "Welcome!"
-				_balance = 999999
 				_balance_label.text = "FREE PLAY"
 				_play_button.disabled = false
 				_cost_label.text = "No server — free play mode"
@@ -274,6 +277,9 @@ func _update_game(delta: float) -> void:
 	_speed = minf(_speed + SPEED_RAMP * delta, MAX_SPEED)
 	_distance += _speed * delta
 	_score = int(_distance / 10.0)
+	if not _free_play and _score != _last_reported_score:
+		_last_reported_score = _score
+		Luxodd.report_score(1, _score)  # live leaderboard and prize progress (TP-2)
 
 	# Physics with apex float
 	var grav_mult := APEX_GRAVITY_MULT if (absf(_vel_y) < 130.0 and not _on_ground) else 1.0
@@ -521,13 +527,23 @@ func _show_game_over() -> void:
 		_tier_result_label.text = "%dm — %s!" % [_score, tier[1]]
 		_tier_result_label.modulate = tier[2]
 	_final_dist_label.text = "%dm" % _score
+	# On cabinets the platform layout draws the live leaderboard beside the game.
+	_leaderboard_list.visible = not Luxodd.is_arcade
 	if _score > _best_distance:
 		_best_distance = _score
 	if not _free_play:
-		Luxodd.level_end(1, _score, int(_speed))
-		# Show the host's continue/restart popup after a delay so player can see their score
-		await get_tree().create_timer(3.0).timeout
-		Luxodd.send_session_option("both")
+		# One level_end per run, with the score shown (TP-1); the plugin sends the final
+		# score_update first. The popup is requested only once level_end is answered (ES-3).
+		var shown_at := Time.get_ticks_msec()
+		Luxodd.level_end(1, _score)  # 1.0.0 passed the speed in the accuracy slot
+		await _wait_level_end_ok(5.0)
+		if not Luxodd.is_arcade:
+			Luxodd.get_leaderboard()  # on cabinets the platform layout shows the leaderboard
+		# Let the player see their score for 3 s, then one combined popup (ES-1).
+		var left := 3.0 - (Time.get_ticks_msec() - shown_at) / 1000.0
+		if left > 0.0:
+			await get_tree().create_timer(left).timeout
+		Luxodd.send_session_option_fast_restart(true)
 
 
 # ── Particles & effects ──────────────────────────────────────────────────────
@@ -927,6 +943,7 @@ func _start_game() -> void:
 	_speed = BASE_SPEED
 	_distance = 0.0
 	_score = 0
+	_last_reported_score = -1
 	_obstacles_passed = 0
 	_last_tier_reached = -1
 	_obstacles.clear()
@@ -955,9 +972,8 @@ func _on_play_pressed() -> void:
 	if _free_play:
 		_start_game()
 		return
-	_play_button.disabled = true
-	_cost_label.text = "Charging..."
-	Luxodd.charge_balance(PLAY_COST, 1234)
+	# Credits are the platform's business: the arcade charges before the game starts.
+	_start_game()
 
 
 func _on_play_again_pressed() -> void:
@@ -965,18 +981,20 @@ func _on_play_again_pressed() -> void:
 		_play_button.disabled = false
 		_balance_label.text = "FREE PLAY"
 		_cost_label.text = "No server — free play mode"
-	else:
-		_balance_label.text = "%d credits" % _balance
-		_play_button.disabled = _balance < PLAY_COST
-		_cost_label.text = "Costs %d credits" % PLAY_COST if _balance >= PLAY_COST else "Not enough credits"
 	_set_state(State.MENU)
 
 
 # ── Luxodd ────────────────────────────────────────────────────────────────────
 
 func _on_connected() -> void:
+	if _connected_once:
+		# A reconnect or a Fast Restart handoff: the plugin keeps the health check running.
+		return
+	_connected_once = true
 	Luxodd.notify_game_ready()
 	Luxodd.start_health_check()
+	Luxodd.get_profile()
+	Luxodd.get_merchant_prize_info()  # before gameplay starts (PZ-1)
 	# Need a user tap to unlock web audio
 	_set_state(State.TAP_TO_START)
 
@@ -985,17 +1003,15 @@ func _on_connection_failed(_error: String) -> void:
 	_set_state(State.TAP_TO_START)
 
 func _on_profile(profile: Dictionary) -> void:
-	_username = profile.get("name", profile.get("username", "Player"))
+	# The player's public handle; never the email or real name.
+	_username = str(profile.get("game_handle", profile.get("username", "Player")))
 	_welcome_label.text = "Welcome, %s" % _username
 
-func _on_balance(balance_data: Dictionary) -> void:
-	_balance = int(balance_data.get("balance", 0))
-	_balance_label.text = "%d credits" % _balance
-	_play_button.disabled = _balance < PLAY_COST
-	_cost_label.text = "Costs %d credits" % PLAY_COST if _balance >= PLAY_COST else "Not enough credits (%d needed)" % PLAY_COST
-
-func _on_charged() -> void:
-	_start_game()
+func _on_prize_info(is_active: bool, prize: Dictionary) -> void:
+	if not is_active or prize.is_empty():
+		return
+	var goal := int(prize.get("goal_score", 0))
+	_tier_label.text = "PRIZE at %dm" % goal if goal > 0 else "PRIZE ACTIVE"
 
 func _on_leaderboard(data: Dictionary) -> void:
 	_leaderboard_list.clear()
@@ -1006,24 +1022,37 @@ func _on_leaderboard(data: Dictionary) -> void:
 	for i in range(mini(entries.size(), 8)):
 		var entry: Dictionary = entries[i]
 		var rank: int = entry.get("rank", i + 1)
-		var uname: String = entry.get("username", "???")
-		var sc: int = int(entry.get("total_score", 0))
+		var uname: String = str(entry.get("game_handle", entry.get("username", "???")))
+		var sc: int = int(entry.get("score_total", entry.get("total_score", 0)))
 		var hl := "> " if uname == _username else "  "
 		_leaderboard_list.append_text("%s%d. %s  %dm\n" % [hl, rank, uname, sc])
 
-func _on_command_error(command: String, _code: int, _message: String) -> void:
-	if command == "ChargeUserBalanceRequest":
-		_cost_label.text = "Payment failed!"
-		_play_button.disabled = false
+func _on_command_error(_command: String, _code: int, _message: String) -> void:
+	pass
 
 func _on_host_action(action: String) -> void:
 	match action:
 		"restart":
+			# Fast Restart: the plugin is already on the replacement session.
 			_start_game()
 		"continue":
 			_start_game()
 		"end":
-			Luxodd.notify_session_end()
+			# level_end was sent at game over; nothing follows session_end (ES-5).
+			Luxodd.back_to_system()
+
+func _on_fast_restart_failed(_code: int, _reason: String) -> void:
+	Luxodd.back_to_system_with_error("Fast Restart failed")
+
+func _wait_level_end_ok(timeout: float) -> void:
+	var done := [false]
+	var cb := func(): done[0] = true
+	Luxodd.level_end_ok.connect(cb, CONNECT_ONE_SHOT)
+	var deadline := Time.get_ticks_msec() + int(timeout * 1000.0)
+	while not done[0] and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	if Luxodd.level_end_ok.is_connected(cb):
+		Luxodd.level_end_ok.disconnect(cb)
 
 func _apply_theme() -> void:
 	_connecting_label.add_theme_color_override("font_color", Color(0.4, 0.6, 1.0))
